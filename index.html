@@ -204,10 +204,31 @@
       overflow: auto;
       padding: 30px;
       display: flex;
-      justify-content: center;
+      justify-content: safe center;
     }
 
-    .org-tree { position: relative; }
+    .org-tree { position: relative; transition: zoom 0.12s; }
+
+    /* ── Zoom controls ── */
+    .org-zoom-controls {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .org-zoom-controls .zbtn {
+      min-width: 30px;
+      padding: 6px 10px;
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+    #orgZoomLabel {
+      min-width: 52px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
 
     .org-node-group {
       display: flex;
@@ -1242,6 +1263,13 @@
     <button onclick="collapseAllOrg()"><span class="editable-text" data-key="btn_collapse">Thu gọn tất cả</span></button>
     <button class="btn-outline" onclick="openAddNodeModal()"><span class="editable-text" data-key="btn_add_node">+ Thêm đơn vị</span></button>
     <button class="btn-success" onclick="downloadOrgChartImage()"><span class="editable-text" data-key="btn_download_png">Tải ảnh PNG</span></button>
+    <div class="org-zoom-controls">
+      <button class="btn-outline zbtn" onclick="orgZoomStep(-0.1)" title="Thu nhỏ">&#8722;</button>
+      <span id="orgZoomLabel">100%</span>
+      <button class="btn-outline zbtn" onclick="orgZoomStep(0.1)" title="Phóng to">+</button>
+      <button class="btn-outline zbtn" onclick="orgZoomFit()" title="Vừa màn hình">Vừa màn hình</button>
+      <button class="btn-outline zbtn" onclick="orgZoomReset()" title="Về 100%">100%</button>
+    </div>
   </div>
   <div class="panel orgchart-container" id="orgChartArea">
     <div class="org-tree" id="orgTree"></div>
@@ -1764,9 +1792,12 @@ function downloadOrgChartImage() {
   clone.style.height = 'max-content';
   clone.style.padding = '40px';
   clone.style.background = '#ffffff';
+  // Xuất ảnh luôn ở 100% (bỏ mức zoom đang xem)
+  clone.querySelectorAll('#orgTree, .org-tree').forEach(el => el.style.zoom = '1');
 
   // Đo kích thước thật
   const measure = source.cloneNode(true);
+  measure.querySelectorAll('#orgTree, .org-tree').forEach(el => el.style.zoom = '1');
   measure.style.cssText = 'position:absolute;left:-99999px;top:0;overflow:visible;width:max-content;height:max-content;padding:40px;visibility:hidden;';
   const styleTag = document.createElement('style');
   styleTag.textContent = allCSS;
@@ -3553,6 +3584,39 @@ document.addEventListener('keydown', e => {
     saveToLocal();
   }
 });
+
+// ─── ORG CHART ZOOM ───
+let orgZoom = 1;
+const ORG_ZOOM_MIN = 0.25, ORG_ZOOM_MAX = 2;
+function applyOrgZoom() {
+  const tree = document.getElementById('orgTree');
+  if (!tree) return;
+  orgZoom = Math.min(ORG_ZOOM_MAX, Math.max(ORG_ZOOM_MIN, Math.round(orgZoom * 100) / 100));
+  tree.style.zoom = orgZoom;
+  const lbl = document.getElementById('orgZoomLabel');
+  if (lbl) lbl.textContent = Math.round(orgZoom * 100) + '%';
+}
+function orgZoomStep(d) { orgZoom += d; applyOrgZoom(); }
+function orgZoomReset() { orgZoom = 1; applyOrgZoom(); }
+function orgZoomFit() {
+  const area = document.getElementById('orgChartArea');
+  const tree = document.getElementById('orgTree');
+  if (!area || !tree) return;
+  const prev = tree.style.zoom;
+  tree.style.zoom = '1';
+  const natural = tree.scrollWidth;        // bề rộng thật ở 100%
+  const avail = area.clientWidth - 60;     // trừ padding
+  tree.style.zoom = prev;
+  if (natural > 0) { orgZoom = Math.min(1, avail / natural); applyOrgZoom(); }
+}
+// Ctrl + lăn chuột để zoom
+document.getElementById('orgChartArea')?.addEventListener('wheel', e => {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  orgZoomStep(e.deltaY < 0 ? 0.1 : -0.1);
+}, { passive: false });
+// Tự động vừa màn hình sau khi tải
+window.addEventListener('load', () => setTimeout(orgZoomFit, 300));
 
 // ─── BOOT ───
 init();
