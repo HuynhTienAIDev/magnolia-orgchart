@@ -1370,6 +1370,8 @@ const SAMPLE_DATA = {"company": "Magnolia", "orgChart": {"name": "Ban Giám đ�
 
 // ─── APP STATE ───
 let appData = {};
+  const ORG_SB_URL = 'https://xurzmehgobrkaenuyyix.supabase.co';
+  const ORG_SB_ANON = 'sb_publishable_MwFBy1zfICSpzj-JwyrO_w_YiH_RTZM';
 let orgCollapsed = new Set();
 let customLabels = {};
 
@@ -1557,9 +1559,12 @@ document.addEventListener('click', e => {
 });
 
 // ─── INIT ───
-function init() {
-  // View-only mode: load from embedded backup, never touch localStorage
+async function init() {
   appData = structuredClone(SAMPLE_DATA);
+  try {
+    const _r = await fetch(ORG_SB_URL + '/rest/v1/rpc/get_org_chart', { method: 'POST', headers: { apikey: ORG_SB_ANON, Authorization: 'Bearer ' + ORG_SB_ANON, 'Content-Type': 'application/json' }, body: '{}' });
+    if (_r.ok) { const _d = await _r.json(); if (_d && _d.orgChart) appData = _d; }
+  } catch (_e) { console.warn('org load', _e); }
   loadLabels();
   loadTabOrder();
   initEditableTexts();
@@ -3546,9 +3551,16 @@ function importJSON(event) {
   event.target.value = '';
 }
 
-function saveToLocal() {
+async function saveToLocal() {
   localStorage.setItem('magnolia_orgsuit_view_data', JSON.stringify(appData));
-  showToast('Đã lưu vào LocalStorage!');
+  let _pass = localStorage.getItem('magnolia_org_pass');
+  if (!_pass) { _pass = prompt('Nhập passcode để đồng bộ lên hệ thống nhân sự:'); if (_pass) localStorage.setItem('magnolia_org_pass', _pass); }
+  if (!_pass) { showToast('Đã lưu cục bộ (chưa đồng bộ — thiếu passcode)'); return; }
+  try {
+    const _r = await fetch(ORG_SB_URL + '/rest/v1/rpc/save_org_chart', { method: 'POST', headers: { apikey: ORG_SB_ANON, Authorization: 'Bearer ' + ORG_SB_ANON, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_data: appData, p_pass: _pass }) });
+    if (_r.ok) { const _res = await _r.json(); showToast('Đã lưu & đồng bộ nhân sự — thêm ' + (_res.inserted || 0) + ', sửa ' + (_res.updated || 0) + ', ngừng ' + (_res.deactivated || 0)); }
+    else { const _e = await _r.json().catch(function () { return {}; }); if ((_e.message || '').toLowerCase().indexOf('passcode') >= 0) { localStorage.removeItem('magnolia_org_pass'); showToast('Sai passcode — bấm Lưu lại để nhập'); } else showToast('Đồng bộ lỗi: ' + (_e.message || _r.status)); }
+  } catch (_x) { showToast('Đồng bộ lỗi mạng'); }
 }
 
 function autoSave() {
