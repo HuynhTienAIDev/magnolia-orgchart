@@ -1738,6 +1738,30 @@ function buildOrgNode(node, path, filter, colorIdx) {
     });
     el.appendChild(toggle);
   }
+  // ── Kéo-thả xếp lại sơ đồ: kéo 1 ô thả vào ô khác → thành cấp dưới của ô đó ──
+  if (path !== 'root') {
+    el.draggable = true;
+    el.addEventListener('dragstart', e => {
+      if (e.target && e.target.isContentEditable) { e.preventDefault(); return; }
+      e.stopPropagation();
+      e.dataTransfer.setData('text/plain', path);
+      e.dataTransfer.effectAllowed = 'move';
+      el.style.opacity = '0.4';
+    });
+    el.addEventListener('dragend', () => { el.style.opacity = ''; });
+  }
+  el.addEventListener('dragover', e => {
+    e.preventDefault(); e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    el.style.outline = '2px dashed #0073EA'; el.style.outlineOffset = '2px';
+  });
+  el.addEventListener('dragleave', () => { el.style.outline = ''; el.style.outlineOffset = ''; });
+  el.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation();
+    el.style.outline = ''; el.style.outlineOffset = '';
+    const srcPath = e.dataTransfer.getData('text/plain');
+    if (srcPath) moveOrgNode(srcPath, path);
+  });
   group.appendChild(el);
 
   const reports2 = node.reports || [];
@@ -1767,6 +1791,24 @@ function buildOrgNode(node, path, filter, colorIdx) {
   }
 
   return group;
+}
+
+function moveOrgNode(srcPath, destPath) {
+  if (!srcPath || srcPath === 'root' || srcPath === destPath) return;
+  if (destPath === srcPath || destPath.indexOf(srcPath + '.') === 0) { showToast('Không thể chuyển một đơn vị vào chính cấp dưới của nó.'); return; }
+  const srcNode = getNodeByPath(srcPath);
+  const destNode = getNodeByPath(destPath);
+  if (!srcNode || !destNode) return;
+  const parts = srcPath.split('.');
+  const idx = parseInt(parts.pop(), 10);
+  const parentNode = getNodeByPath(parts.join('.'));
+  if (!parentNode || !parentNode.reports) return;
+  parentNode.reports.splice(idx, 1);
+  if (!destNode.reports) destNode.reports = [];
+  destNode.reports.push(srcNode);
+  autoSave();
+  renderOrgChart();
+  showToast('Đã chuyển "' + (srcNode.person || srcNode.name || 'đơn vị') + '" vào "' + (destNode.name || destNode.person || 'đơn vị') + '". Bấm Lưu để đồng bộ.');
 }
 
 function expandAllOrg() { orgCollapsed.clear(); renderOrgChart(); }
