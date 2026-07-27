@@ -3613,9 +3613,23 @@ window.addEventListener('message', function (e) {
   }
 });
 
+let _orgPersistTimer = null;
 function autoSave() {
   localStorage.setItem('magnolia_orgsuit_view_data', JSON.stringify(appData));
   updateJSONEditor();
+  // Tự đồng bộ server nếu đã có passcode (app cha bơm cho super_admin) — debounce 1s, KHÔNG prompt.
+  const _pass = localStorage.getItem('magnolia_org_pass');
+  if (_pass) {
+    clearTimeout(_orgPersistTimer);
+    _orgPersistTimer = setTimeout(function () { persistOrgToServer(_pass); }, 1000);
+  }
+}
+async function persistOrgToServer(_pass) {
+  try {
+    const _r = await fetch(ORG_SB_URL + '/rest/v1/rpc/save_org_chart', { method: 'POST', headers: { apikey: ORG_SB_ANON, Authorization: 'Bearer ' + ORG_SB_ANON, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_data: appData, p_pass: _pass }) });
+    if (_r.ok) { showToast('Đã tự lưu & đồng bộ'); }
+    else { const _e = await _r.json().catch(function () { return {}; }); if ((_e.message || '').toLowerCase().indexOf('passcode') >= 0) localStorage.removeItem('magnolia_org_pass'); }
+  } catch (_x) {}
 }
 
 // ═══════════════════════════
