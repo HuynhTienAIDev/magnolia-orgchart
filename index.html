@@ -3563,6 +3563,14 @@ async function saveToLocal() {
   } catch (_x) { showToast('Đồng bộ lỗi mạng'); }
 }
 
+// Nhận passcode từ app cha (HR OS) qua postMessage — bỏ popup nhập passcode cho super_admin đã đăng nhập.
+window.addEventListener('message', function (e) {
+  if (e.source !== window.parent) return;
+  if (e.data && e.data.type === 'mag-org-pass' && typeof e.data.pass === 'string' && e.data.pass) {
+    localStorage.setItem('magnolia_org_pass', e.data.pass);
+  }
+});
+
 function autoSave() {
   localStorage.setItem('magnolia_orgsuit_view_data', JSON.stringify(appData));
   updateJSONEditor();
